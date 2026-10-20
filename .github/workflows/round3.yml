@@ -1,0 +1,50 @@
+name: round3
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  fixes:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Which sudo implementations are installed
+        continue-on-error: true
+        run: |
+          update-alternatives --display sudo
+          ls -l /usr/bin/sudo*
+          dpkg -l | awk '$2 ~ /^(sudo|sudo-rs|coreutils|coreutils-from-uutils|rust-coreutils|gnu-coreutils)$/ {print $1, $2, $3}'
+
+      - name: Pass variables through sudo-rs
+        continue-on-error: true
+        run: |
+          export CFG_VAR=hello
+          sudo -E sh -c 'echo "with -E: ${CFG_VAR:-unset}"'
+          sudo --preserve-env=CFG_VAR,PATH sh -c 'echo "with --preserve-env: ${CFG_VAR:-unset}"'
+          sudo env CFG_VAR="$CFG_VAR" sh -c 'echo "with env: ${CFG_VAR:-unset}"'
+
+      - name: Switch back to the original sudo
+        continue-on-error: true
+        run: |
+          sudo update-alternatives --set sudo /usr/bin/sudo.ws
+          sudo --version | head -1
+          export CFG_VAR=hello
+          sudo -E sh -c 'echo "with -E: ${CFG_VAR:-unset}"'
+
+      - name: adduser error and fix
+        continue-on-error: true
+        run: |
+          set +e
+          sudo adduser --disabled-password --comment "" cfgtest 2>&1 | tail -2
+          echo "adduser exit=${PIPESTATUS[0]}"
+          sudo rm -rf /etc/skel/.nvm/test
+          sudo adduser --disabled-password --comment "" cfgtest2 > /dev/null 2>&1
+          echo "adduser after fix exit=$?"
+          id cfgtest2
+
+      - name: MySQL 8.4 with mysql_native_password enabled
+        continue-on-error: true
+        run: |
+          echo -e "[mysqld]\nmysql_native_password=ON" | sudo tee /etc/mysql/mysql.conf.d/native-password.cnf
+          sudo systemctl start mysql
+          mysql -uroot -proot -e "CREATE USER 'app'@'localhost' IDENTIFIED WITH mysql_native_password BY 'app123'; SELECT user, plugin FROM mysql.user WHERE user='app';" 2>&1 | grep -v Warning
