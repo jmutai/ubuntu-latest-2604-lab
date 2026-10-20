@@ -1,0 +1,20 @@
+name: round10
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  sudo-snippet:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Article snippet, exact lines
+        run: |
+          export CFG_VAR=hello
+          export PATH="/opt/cfgtools/bin:$PATH"
+          sudo --preserve-env=CFG_VAR,PATH sh -c 'echo "with --preserve-env: ${CFG_VAR:-unset} ${PATH%%:*}"'
+          sudo env CFG_VAR="$CFG_VAR" PATH="$PATH" sh -c 'echo "with env: ${CFG_VAR:-unset} ${PATH%%:*}"'
