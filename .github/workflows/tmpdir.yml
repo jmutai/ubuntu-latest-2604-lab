@@ -1,0 +1,19 @@
+name: tmpdir
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+    env:
+      TMPDIR: ${{ runner.temp }}
+    steps:
+      - name: Where temp files land
+        run: |
+          echo "mktemp: $(mktemp)"
+          python3 -c 'import tempfile; print("python:", tempfile.gettempdir())'
+          printf 'package main\nfunc main() {}\n' > main.go
+          go mod init demo >/dev/null 2>&1
+          go build -work -o /dev/null . 2>&1
