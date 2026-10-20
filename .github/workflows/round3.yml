@@ -2,7 +2,6 @@ name: round3
 
 on:
   workflow_dispatch:
-  push:
 
 jobs:
   fixes:

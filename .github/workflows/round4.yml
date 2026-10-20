@@ -1,0 +1,25 @@
+name: round4
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  helm:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: helm upgrade --atomic
+        continue-on-error: true
+        run: |
+          helm version --short
+          helm upgrade --install --atomic demo oci://registry-1.docker.io/bitnamicharts/nginx 2>&1 | tail -2
+          helm upgrade --install --rollback-on-failure demo oci://registry-1.docker.io/bitnamicharts/nginx 2>&1 | tail -2
+
+  latest:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ImageOS=$ImageOS ImageVersion=$ImageVersion"
