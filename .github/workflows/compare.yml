@@ -1,0 +1,100 @@
+name: compare-runner-images
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  inventory:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Which image did this job get
+        run: |
+          echo "label=${{ matrix.os }} ImageOS=$ImageOS ImageVersion=$ImageVersion"
+          grep PRETTY_NAME /etc/os-release
+          uname -r
+
+      - name: Tool versions
+        run: |
+          for c in "python3 --version" "node --version" "gcc --version" "cmake --version" \
+                   "docker --version" "docker compose version" "helm version --short" \
+                   "openssl version" "psql --version" "mysql --version" "mvn -v" \
+                   "conda --version" "hg --version" "pulumi version" "7z i" "sudo --version" "ls --version"; do
+            printf '%-24s ' "$c"
+            out=$($c 2>&1 | head -1) && echo "$out" || echo "MISSING ($out)"
+          done
+          java -version 2>&1 | head -1
+          env | grep '^JAVA_HOME' | sort
+          printf 'gcc default C standard: '; gcc -dM -E -x c /dev/null | grep __STDC_VERSION__
+
+      - name: /tmp filesystem
+        run: |
+          findmnt -no FSTYPE,SIZE,OPTIONS /tmp
+          df -hT /tmp "$RUNNER_TEMP"
+
+  breakers:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: 9 GB into /tmp
+        continue-on-error: true
+        run: dd if=/dev/zero of=/tmp/big bs=1M count=9000 status=none && ls -lh /tmp/big
+
+      - name: 9 GB into RUNNER_TEMP
+        continue-on-error: true
+        run: |
+          rm -f /tmp/big
+          dd if=/dev/zero of="$RUNNER_TEMP/big" bs=1M count=9000 status=none && ls -lh "$RUNNER_TEMP/big"
+          rm -f "$RUNNER_TEMP/big"
+
+      - name: CMake project with an old minimum
+        continue-on-error: true
+        run: |
+          mkdir -p old-cmake && cd old-cmake
+          printf 'cmake_minimum_required(VERSION 3.0)\nproject(demo C)\nadd_executable(demo main.c)\n' > CMakeLists.txt
+          printf 'int main(void){return 0;}\n' > main.c
+          cmake -S . -B build
+
+      - name: CMake with CMAKE_POLICY_VERSION_MINIMUM
+        continue-on-error: true
+        run: cd old-cmake && rm -rf build && cmake -S . -B build -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && cmake --build build
+
+      - name: C code that defines bool
+        continue-on-error: true
+        run: |
+          printf 'typedef int bool;\nint main(void) { bool ok = 1; return !ok; }\n' > oldbool.c
+          gcc -c oldbool.c -o oldbool.o
+
+      - name: Same code with -std=gnu17
+        continue-on-error: true
+        run: gcc -std=gnu17 -c oldbool.c -o oldbool.o && echo compiled
+
+      - name: Python dead-battery imports
+        continue-on-error: true
+        run: python3 -c 'import cgi, crypt, telnetlib; print("imports ok")'
+
+      - name: i386 container DNS
+        continue-on-error: true
+        run: docker run --rm i386/debian:bookworm getent hosts github.com
+
+      - name: i386 container DNS, seccomp unconfined
+        continue-on-error: true
+        run: docker run --rm --security-opt seccomp=unconfined i386/debian:bookworm getent hosts github.com
+
+      - name: adduser
+        continue-on-error: true
+        run: sudo adduser --disabled-password --gecos "" cfgtest 2>&1 | tail -3; id cfgtest
+
+      - name: adduser after removing nvm tests from skel
+        continue-on-error: true
+        run: |
+          sudo rm -rf /etc/skel/.nvm/test
+          sudo deluser --remove-home cfgtest >/dev/null 2>&1 || true
+          sudo adduser --disabled-password --gecos "" cfgtest2 2>&1 | tail -1; id cfgtest2
