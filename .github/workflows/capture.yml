@@ -1,7 +1,6 @@
 name: capture
 
 on:
-  push:
   workflow_dispatch:
 
 jobs:

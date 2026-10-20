@@ -1,0 +1,17 @@
+name: stdbool
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - run: |
+          printf '#include <stdbool.h>\nint main(void) { bool ok = true; return !ok; }\n' > newbool.c
+          gcc -c newbool.c -o newbool.o && echo "stdbool compiled with default standard"
