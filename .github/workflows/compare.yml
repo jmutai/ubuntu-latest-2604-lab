@@ -2,7 +2,6 @@ name: compare-runner-images
 
 on:
   workflow_dispatch:
-  push:
 
 jobs:
   inventory:

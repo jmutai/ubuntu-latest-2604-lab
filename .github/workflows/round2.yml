@@ -1,0 +1,119 @@
+name: round2
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  tools:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: sudo and coreutils providers
+        continue-on-error: true
+        run: |
+          ls -l /usr/bin/sudo /usr/bin/ls /usr/bin/cp /usr/bin/date /usr/bin/sort
+          dpkg -S /usr/bin/sudo /usr/bin/ls 2>&1
+          dpkg -l | awk '/coreutils|sudo/ {print $1, $2, $3}'
+          cp --version | head -1; date --version | head -1; sort --version | head -1
+
+      - name: sudo flags CI scripts use
+        continue-on-error: true
+        run: |
+          export CFG_VAR=hello
+          echo "sudo -E:            $(sudo -E sh -c 'echo ${CFG_VAR:-unset}' 2>&1)"
+          echo "sudo --preserve-env: $(sudo --preserve-env=CFG_VAR sh -c 'echo ${CFG_VAR:-unset}' 2>&1)"
+          echo "sudo -u runner:     $(sudo -u runner whoami 2>&1)"
+          echo "sudo -i:            $(sudo -i sh -c 'pwd' 2>&1)"
+          echo "sudo -n true:       $(sudo -n true 2>&1; echo exit=$?)"
+
+      - name: GNU-only flags under uutils
+        continue-on-error: true
+        run: |
+          date -d '2026-10-19 +30 days' +%F
+          printf '10\n9\n100\n' | sort -h | tr '\n' ' '; echo
+          ls --time-style=+%Y -l /etc/hostname
+          echo abc | sed 's/b/B/'
+          stat -c '%U %a' /etc/passwd
+
+      - name: 7-Zip
+        continue-on-error: true
+        run: |
+          command -v 7z 7za 7zz || true
+          7z | head -3
+
+      - name: Compose v1 binary and Helm 4 flags
+        continue-on-error: true
+        run: |
+          docker-compose version 2>&1 | head -1
+          helm upgrade --help | grep -E -- '--atomic|--rollback-on-failure|--force-replace|--force ' || true
+
+      - name: MySQL native password
+        continue-on-error: true
+        run: |
+          sudo systemctl start mysql
+          mysql -uroot -proot -e "SELECT VERSION(); CREATE USER 'app'@'localhost' IDENTIFIED WITH mysql_native_password BY 'app123';" 2>&1
+          mysql -uroot -proot -e "SELECT plugin_name, plugin_status FROM information_schema.plugins WHERE plugin_name LIKE '%native%';" 2>&1
+
+      - name: adduser exit code
+        continue-on-error: true
+        run: |
+          sudo adduser --disabled-password --gecos "" cfgtest > adduser.log 2>&1; echo "adduser exit=$?"
+          id cfgtest; sudo ls -A /home/cfgtest | head
+
+      - name: Fix /tmp by unmounting the tmpfs
+        continue-on-error: true
+        run: |
+          findmnt -no FSTYPE,SIZE /tmp || echo "/tmp is not a separate mount"
+          sudo systemctl mask tmp.mount
+          sudo umount -l /tmp || true
+          findmnt -no FSTYPE,SIZE /tmp || echo "/tmp is now on the root filesystem"
+          dd if=/dev/zero of=/tmp/big bs=1M count=9000 status=none && ls -lh /tmp/big && rm -f /tmp/big
+
+      - name: Guard against an unexpected image
+        continue-on-error: true
+        run: |
+          if [ "$ImageOS" != "ubuntu24" ]; then
+            echo "::error::This job expects Ubuntu 24.04 but got $ImageOS ($ImageVersion)"
+            exit 1
+          fi
+
+  setup-actions:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.10', '3.11', '3.12']
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/setup-python@v7
+        continue-on-error: true
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python --version
+
+  java:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Default JDK
+        run: java -version 2>&1 | head -1
+      - name: Switch with the preinstalled JDK 17
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
+      - run: java -version 2>&1 | head -1
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '8'
+      - run: java -version 2>&1 | head -1
+
+  arm:
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - run: |
+          echo "ImageOS=$ImageOS ImageVersion=$ImageVersion arch=$(uname -m)"
+          grep PRETTY_NAME /etc/os-release
+          findmnt -no FSTYPE,SIZE /tmp
