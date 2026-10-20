@@ -1,7 +1,6 @@
 name: stdbool
 
 on:
-  push:
   workflow_dispatch:
 
 jobs:

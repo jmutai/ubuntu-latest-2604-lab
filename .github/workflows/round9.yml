@@ -1,0 +1,45 @@
+name: round9
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Image and leftovers
+        shell: bash {0}
+        run: |
+          echo "ImageOS=$ImageOS ImageVersion=$ImageVersion"
+          findmnt -no FSTYPE,SIZE,OPTIONS /tmp || echo "/tmp is not a separate mount"
+          ls -d /etc/skel/.nvm/test 2>&1
+
+      - name: PATH through sudo
+        shell: bash {0}
+        run: |
+          sudo grep -rh secure_path /etc/sudoers /etc/sudoers.d 2>/dev/null
+          export PATH="/opt/cfgtools/bin:$PATH"
+          echo "preserve-env=PATH: $(sudo --preserve-env=PATH sh -c 'echo $PATH' 2>&1 | cut -c1-40)"
+          echo "env PATH=:         $(sudo env PATH="$PATH" sh -c 'echo $PATH' 2>&1 | cut -c1-40)"
+
+      - name: Guarded switch to the original sudo
+        run: |
+          if [ -x /usr/bin/sudo.ws ]; then sudo update-alternatives --set sudo /usr/bin/sudo.ws; fi
+          sudo --version | head -1
+
+      - name: MySQL native password on both images
+        run: |
+          printf '[mysqld]\nloose-mysql_native_password=ON\n' | sudo tee /etc/mysql/mysql.conf.d/native-password.cnf
+          sudo systemctl start mysql
+          mysql -uroot -proot -e "CREATE USER 'app'@'localhost' IDENTIFIED WITH mysql_native_password BY 'app123'; SELECT user, plugin FROM mysql.user WHERE user='app';" 2>&1 | grep -v Warning
+
+      - name: How much a regular user can write to /tmp
+        shell: bash {0}
+        run: |
+          dd if=/dev/zero of=/tmp/fill bs=1M count=12000 status=none 2>&1
+          ls -l --block-size=M /tmp/fill; rm -f /tmp/fill
