@@ -1,0 +1,21 @@
+name: image-guard
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Fail if the runner image is not Ubuntu 24.04
+        run: |
+          echo "Runner image: $ImageOS $ImageVersion"
+          if [ "$ImageOS" != "ubuntu24" ]; then
+            echo "::error::Expected Ubuntu 24.04, got $ImageOS ($ImageVersion). Pin runs-on or fix the job."
+            exit 1
+          fi

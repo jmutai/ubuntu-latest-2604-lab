@@ -2,7 +2,6 @@ name: round4
 
 on:
   workflow_dispatch:
-  push:
 
 jobs:
   helm:
