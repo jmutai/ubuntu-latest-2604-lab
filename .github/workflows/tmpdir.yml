@@ -7,9 +7,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-26.04
-    env:
-      TMPDIR: ${{ runner.temp }}
     steps:
+      - name: Send temp files to the runner disk
+        run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+
       - name: Where temp files land
         run: |
           echo "mktemp: $(mktemp)"
