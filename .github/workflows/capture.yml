@@ -1,0 +1,21 @@
+name: capture
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  capture:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Session for the screenshot
+        shell: bash {0}
+        run: |
+          echo "PROMPT $(whoami)@$(hostname)"
+          echo '$ sudo --version | head -1'; sudo --version | head -1
+          export CFG_VAR=hello
+          echo '$ export CFG_VAR=hello'
+          echo "\$ sudo -E sh -c 'echo \"with -E: \${CFG_VAR:-unset}\"'"; sudo -E sh -c 'echo "with -E: ${CFG_VAR:-unset}"' 2>&1
+          echo '$ findmnt -no FSTYPE,SIZE /tmp'; findmnt -no FSTYPE,SIZE /tmp
+          echo '$ dd if=/dev/zero of=/tmp/big bs=1M count=9000 status=none'; dd if=/dev/zero of=/tmp/big bs=1M count=9000 status=none 2>&1
+          echo '$ ls --version | head -1'; ls --version | head -1
